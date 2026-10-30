@@ -1,0 +1,36 @@
+# 忽略规则（jshERP 测试项目）
+
+# 系统文件
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 临时文件
+*.tmp
+*.log
+~$*
+
+# 本地环境（被测系统与依赖不纳入仓库）
+jshERP/
+jsh-env/
+*.jar
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+
+# Postman 本地缓冲
+.postman/
+
+# 运行临时文件
+postman/last_run.json
+postman/debug*.json

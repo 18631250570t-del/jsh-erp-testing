@@ -1,0 +1,2182 @@
+{
+  "info": {
+    "name": "jshERP 接口自动化",
+    "description": "华夏ERP（jshERP）接口自动化测试集合 —— 全参数化版本\n\n【参数化约定】\n  所有请求体中的具体值都抽成变量，变量来源优先级：\n    CSV 数据（Runner 选文件）> 环境变量（jshERP 本地环境）\n  环境变量里已给好默认值，因此不选 CSV 也能直接 Run。\n\n【结构】\n  01 认证              — 未授权访问必须被拒绝\n  02~06 五个模块 CRUD  — 查询/新增/定位/修改/删除/确认（id 通过变量传递）\n  07 字段校验（CSV）   — 5 个模块的字段边界与非法值\n  08 必填参数缺失      — 缺参数时的错误处理\n  09 单据接口          — 单据列表与状态筛选\n\n【运行】newman run 集合.json -e 环境.json --folder \"模块\" --delay-request 1500",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01-认证",
+      "description": "验证未登录访问必须被拒绝",
+      "item": [
+        {
+          "name": "无 token 访问受保护接口",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/list?currentPage={{pageNo}}&pageSize={{pageSize}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSize}}"
+                }
+              ]
+            },
+            "description": "不带 X-Access-Token，期望被拒绝"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = { code: null }; }",
+                  "pm.test(\"无 token 应被拒绝\", function () { pm.expect(String(body.code)).to.not.eql(\"200\"); });",
+                  "pm.test(\"应返回明确未登录提示\", function () {",
+                  "    pm.expect(pm.response.text()).to.match(/loginOut|未登录|请先登录/i);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02-仓库接口（增删改查）",
+      "description": "完整 CRUD 链，全部参数化：\n  名称 = {{depotName}} / 新名称 = {{depotNewName}}\n  id 由『3 查询并保存 id』写入 {{depotId}}，供修改和删除引用\n  默认值在环境变量中，可覆盖（也可用 CSV 提供多组）",
+      "item": [
+        {
+          "name": "1 查询列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/list?currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "GET /depot/list 分页查询"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"查询列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回分页结构 total 为数字\", function () {",
+                  "    const d = body.data || {};",
+                  "    pm.expect(d.total === 0 || typeof d.total === \"number\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 新增测试数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "add"
+              ]
+            },
+            "description": "POST /depot/add，名称取 {{depotName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{depotName}}\",\n  \"type\": \"{{depotType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3 查询并保存 id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "在列表中找到刚新增的记录，把 id 写入环境变量供后续请求引用"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"depotName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"能找到刚新增的测试数据（\" + target + \"）\", function () {",
+                  "    pm.expect(found, \"未在列表中找到 \" + target).to.not.be.undefined;",
+                  "});",
+                  "if (found) {",
+                  "    pm.environment.set(\"depotId\", found.id);",
+                  "    console.log(\"已保存 depotId =\", found.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "4 修改",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "update"
+              ]
+            },
+            "description": "PUT /depot/update，id={{depotId}}，名称改为 {{depotNewName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{depotId}}\",\n  \"name\": \"{{depotNewName}}\",\n  \"type\": \"{{depotType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "5 删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/delete?id={{depotId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{depotId}}"
+                }
+              ]
+            },
+            "description": "DELETE /depot/delete?id={{depotId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "6 删除后确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "确认删除后列表中不再出现该记录"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"depotNewName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"删除后列表中不应再有该记录（\" + target + \"）\", function () {",
+                  "    pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03-客户接口（增删改查）",
+      "description": "完整 CRUD 链，全部参数化：\n  名称 = {{customerName}} / 新名称 = {{customerNewName}}\n  id 由『3 查询并保存 id』写入 {{customerId}}，供修改和删除引用\n  默认值在环境变量中，可覆盖（也可用 CSV 提供多组）",
+      "item": [
+        {
+          "name": "1 查询列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "GET /supplier/list 分页查询"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"查询列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回分页结构 total 为数字\", function () {",
+                  "    const d = body.data || {};",
+                  "    pm.expect(d.total === 0 || typeof d.total === \"number\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 新增测试数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "add"
+              ]
+            },
+            "description": "POST /supplier/add，名称取 {{customerName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplier\": \"{{customerName}}\",\n  \"type\": \"{{customerType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3 查询并保存 id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "在列表中找到刚新增的记录，把 id 写入环境变量供后续请求引用"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"customerName\");",
+                  "const found = rows.find(r => r && r[\"supplier\"] === target);",
+                  "pm.test(\"能找到刚新增的测试数据（\" + target + \"）\", function () {",
+                  "    pm.expect(found, \"未在列表中找到 \" + target).to.not.be.undefined;",
+                  "});",
+                  "if (found) {",
+                  "    pm.environment.set(\"customerId\", found.id);",
+                  "    console.log(\"已保存 customerId =\", found.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "4 修改",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "update"
+              ]
+            },
+            "description": "PUT /supplier/update，id={{customerId}}，名称改为 {{customerNewName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{customerId}}\",\n  \"supplier\": \"{{customerNewName}}\",\n  \"type\": \"{{customerType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "5 删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/delete?id={{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{customerId}}"
+                }
+              ]
+            },
+            "description": "DELETE /supplier/delete?id={{customerId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "6 删除后确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "确认删除后列表中不再出现该记录"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"customerNewName\");",
+                  "const found = rows.find(r => r && r[\"supplier\"] === target);",
+                  "pm.test(\"删除后列表中不应再有该记录（\" + target + \"）\", function () {",
+                  "    pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04-供应商接口（增删改查）",
+      "description": "完整 CRUD 链，全部参数化：\n  名称 = {{supplierName}} / 新名称 = {{supplierNewName}}\n  id 由『3 查询并保存 id』写入 {{supplierId}}，供修改和删除引用\n  默认值在环境变量中，可覆盖（也可用 CSV 提供多组）",
+      "item": [
+        {
+          "name": "1 查询列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "GET /supplier/list 分页查询"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"查询列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回分页结构 total 为数字\", function () {",
+                  "    const d = body.data || {};",
+                  "    pm.expect(d.total === 0 || typeof d.total === \"number\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 新增测试数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "add"
+              ]
+            },
+            "description": "POST /supplier/add，名称取 {{supplierName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplier\": \"{{supplierName}}\",\n  \"type\": \"{{vendorType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3 查询并保存 id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "在列表中找到刚新增的记录，把 id 写入环境变量供后续请求引用"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"supplierName\");",
+                  "const found = rows.find(r => r && r[\"supplier\"] === target);",
+                  "pm.test(\"能找到刚新增的测试数据（\" + target + \"）\", function () {",
+                  "    pm.expect(found, \"未在列表中找到 \" + target).to.not.be.undefined;",
+                  "});",
+                  "if (found) {",
+                  "    pm.environment.set(\"supplierId\", found.id);",
+                  "    console.log(\"已保存 supplierId =\", found.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "4 修改",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "update"
+              ]
+            },
+            "description": "PUT /supplier/update，id={{supplierId}}，名称改为 {{supplierNewName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{supplierId}}\",\n  \"supplier\": \"{{supplierNewName}}\",\n  \"type\": \"{{vendorType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "5 删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/delete?id={{supplierId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{supplierId}}"
+                }
+              ]
+            },
+            "description": "DELETE /supplier/delete?id={{supplierId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "6 删除后确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "确认删除后列表中不再出现该记录"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"supplierNewName\");",
+                  "const found = rows.find(r => r && r[\"supplier\"] === target);",
+                  "pm.test(\"删除后列表中不应再有该记录（\" + target + \"）\", function () {",
+                  "    pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05-账户接口（增删改查）",
+      "description": "完整 CRUD 链，全部参数化：\n  名称 = {{accountName}} / 新名称 = {{accountNewName}}\n  id 由『3 查询并保存 id』写入 {{accountId}}，供修改和删除引用\n  默认值在环境变量中，可覆盖（也可用 CSV 提供多组）",
+      "item": [
+        {
+          "name": "1 查询列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/list?currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "GET /account/list 分页查询"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"查询列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回分页结构 total 为数字\", function () {",
+                  "    const d = body.data || {};",
+                  "    pm.expect(d.total === 0 || typeof d.total === \"number\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 新增测试数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "add"
+              ]
+            },
+            "description": "POST /account/add，名称取 {{accountName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{accountName}}\",\n  \"serialNo\": \"{{accountSerialNo}}\",\n  \"initialAmount\": \"{{accountAmount}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3 查询并保存 id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "在列表中找到刚新增的记录，把 id 写入环境变量供后续请求引用"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"accountName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"能找到刚新增的测试数据（\" + target + \"）\", function () {",
+                  "    pm.expect(found, \"未在列表中找到 \" + target).to.not.be.undefined;",
+                  "});",
+                  "if (found) {",
+                  "    pm.environment.set(\"accountId\", found.id);",
+                  "    console.log(\"已保存 accountId =\", found.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "4 修改",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "update"
+              ]
+            },
+            "description": "PUT /account/update，id={{accountId}}，名称改为 {{accountNewName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{accountId}}\",\n  \"name\": \"{{accountNewName}}\",\n  \"serialNo\": \"{{accountSerialNo}}\",\n  \"initialAmount\": \"{{accountAmount}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "5 删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/delete?id={{accountId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{accountId}}"
+                }
+              ]
+            },
+            "description": "DELETE /account/delete?id={{accountId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "6 删除后确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "确认删除后列表中不再出现该记录"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"accountNewName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"删除后列表中不应再有该记录（\" + target + \"）\", function () {",
+                  "    pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06-商品接口（增删改查）",
+      "description": "完整 CRUD 链，全部参数化：\n  名称 = {{materialName}} / 新名称 = {{materialNewName}}\n  id 由『3 查询并保存 id』写入 {{materialId}}，供修改和删除引用\n  默认值在环境变量中，可覆盖（也可用 CSV 提供多组）",
+      "item": [
+        {
+          "name": "1 查询列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/list?currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "GET /material/list 分页查询"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"查询列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回分页结构 total 为数字\", function () {",
+                  "    const d = body.data || {};",
+                  "    pm.expect(d.total === 0 || typeof d.total === \"number\").to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 新增测试数据",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "add"
+              ]
+            },
+            "description": "POST /material/add，名称取 {{materialName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{materialName}}\",\n  \"unit\": \"{{materialUnit}}\",\n  \"categoryId\": \"{{materialCategoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "3 查询并保存 id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "在列表中找到刚新增的记录，把 id 写入环境变量供后续请求引用"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"materialName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"能找到刚新增的测试数据（\" + target + \"）\", function () {",
+                  "    pm.expect(found, \"未在列表中找到 \" + target).to.not.be.undefined;",
+                  "});",
+                  "if (found) {",
+                  "    pm.environment.set(\"materialId\", found.id);",
+                  "    console.log(\"已保存 materialId =\", found.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "4 修改",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "update"
+              ]
+            },
+            "description": "PUT /material/update，id={{materialId}}，名称改为 {{materialNewName}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{materialId}}\",\n  \"name\": \"{{materialNewName}}\",\n  \"unit\": \"{{materialUnit}}\",\n  \"categoryId\": \"{{materialCategoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "5 删除",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/delete?id={{materialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{materialId}}"
+                }
+              ]
+            },
+            "description": "DELETE /material/delete?id={{materialId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"接口返回 200\", function () { pm.expect(body.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "6 删除后确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/list?currentPage={{pageNo}}&pageSize={{pageSizeBig}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeBig}}"
+                }
+              ]
+            },
+            "description": "确认删除后列表中不再出现该记录"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const rows = (body.data && body.data.rows) || (body.data && body.data.accountList) || [];",
+                  "const target = pm.environment.get(\"materialNewName\");",
+                  "const found = rows.find(r => r && r[\"name\"] === target);",
+                  "pm.test(\"删除后列表中不应再有该记录（\" + target + \"）\", function () {",
+                  "    pm.expect(found).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07-1 仓库字段校验（CSV）",
+      "description": "数据文件：data/data_warehouse.csv，一行一条用例。列名即变量名。",
+      "item": [
+        {
+          "name": "POST /depot/add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "add"
+              ]
+            },
+            "description": "数据文件 data/data_warehouse.csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"type\": \"{{depotType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] HTTP 状态码非 5xx`, function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07-2 客户字段校验（CSV）",
+      "description": "数据文件：data/data_customer.csv，一行一条用例。列名即变量名。",
+      "item": [
+        {
+          "name": "POST /supplier/add 客户",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "add"
+              ]
+            },
+            "description": "数据文件 data/data_customer.csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplier\": \"{{name}}\",\n  \"type\": \"{{customerType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] HTTP 状态码非 5xx`, function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07-3 供应商字段校验（CSV）",
+      "description": "数据文件：data/data_supplier.csv，一行一条用例。列名即变量名。",
+      "item": [
+        {
+          "name": "POST /supplier/add 供应商",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/supplier/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "supplier",
+                "add"
+              ]
+            },
+            "description": "数据文件 data/data_supplier.csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplier\": \"{{name}}\",\n  \"type\": \"{{vendorType}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] HTTP 状态码非 5xx`, function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07-4 账户字段校验（CSV）",
+      "description": "数据文件：data/data_account.csv，一行一条用例。列名即变量名。",
+      "item": [
+        {
+          "name": "POST /account/add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/account/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "account",
+                "add"
+              ]
+            },
+            "description": "数据文件 data/data_account.csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"serialNo\": \"{{serialNo}}\",\n  \"initialAmount\": \"{{amount}}\",\n  \"enabled\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] HTTP 状态码非 5xx`, function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "07-5 商品字段校验（CSV）",
+      "description": "数据文件：data/data_material.csv，一行一条用例。列名即变量名。",
+      "item": [
+        {
+          "name": "POST /material/add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/material/add",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "material",
+                "add"
+              ]
+            },
+            "description": "数据文件 data/data_material.csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"unit\": \"{{unit}}\",\n  \"categoryId\": \"{{materialCategoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] HTTP 状态码非 5xx`, function () {",
+                  "    pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "08-必填参数缺失（CSV）",
+      "description": "数据文件：data/data_missing_param.csv",
+      "item": [
+        {
+          "name": "GET /depot/checkIsNameExist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depot/checkIsNameExist?id={{id}}&name={{name2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depot",
+                "checkIsNameExist"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{id}}"
+                },
+                {
+                  "key": "name",
+                  "value": "{{name2}}"
+                }
+              ]
+            },
+            "description": "缺少必填参数时的错误处理"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectCode = pm.iterationData.get(\"expectCode\");",
+                  "const caseId = pm.iterationData.get(\"caseId\");",
+                  "const desc = pm.iterationData.get(\"desc\");",
+                  "let body;",
+                  "try { body = pm.response.json(); } catch (e) { body = {}; }",
+                  "",
+                  "pm.test(`[${caseId}] ${desc}`, function () {",
+                  "    pm.expect(String(body.code)).to.eql(String(expectCode));",
+                  "});",
+                  "",
+                  "pm.test(`[${caseId}] 不应返回「未知异常」`, function () {",
+                  "    const msg = typeof body.data === \"string\" ? body.data : \"\";",
+                  "    pm.expect(msg).to.not.include(\"未知异常\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "09-单据接口",
+      "description": "单据列表查询与状态筛选（search 必须 URL 编码且携带全量键，见缺陷 #18）",
+      "item": [
+        {
+          "name": "1 单据列表-入库单",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depotHead/list?search={{billSearchFull}}&currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depotHead",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{billSearchFull}}"
+                },
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "search 携带全量键（type=入库）"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"单据列表 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回 rows 数组\", function () {",
+                  "    const rows = (body.data && body.data.rows) || [];",
+                  "    pm.expect(rows).to.be.an(\"array\");",
+                  "});",
+                  "pm.test(\"每条单据含单号与状态字段\", function () {",
+                  "    const rows = (body.data && body.data.rows) || [];",
+                  "    if (rows.length > 0) {",
+                  "        pm.expect(rows[0]).to.have.property(\"number\");",
+                  "        pm.expect(rows[0]).to.have.property(\"status\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "2 单据列表-仅未审核",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Access-Token",
+                "value": "{{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/depotHead/list?search={{billSearchUnaudit}}&currentPage={{pageNo}}&pageSize={{pageSizeList}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "depotHead",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "{{billSearchUnaudit}}"
+                },
+                {
+                  "key": "currentPage",
+                  "value": "{{pageNo}}"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "{{pageSizeList}}"
+                }
+              ]
+            },
+            "description": "search 携带全量键（status=0 未审核）"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"筛选查询 code=200\", function () { pm.expect(body.code).to.eql(200); });",
+                  "pm.test(\"返回结果的 status 均为 0（未审核）\", function () {",
+                  "    const rows = (body.data && body.data.rows) || [];",
+                  "    rows.forEach(r => pm.expect(String(r.status)).to.eql(\"0\"));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

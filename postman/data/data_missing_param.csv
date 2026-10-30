@@ -1,0 +1,5 @@
+﻿caseId,id,name2,expectCode,desc
+API-PM-01,0,T-自动仓1,200,参数完整，查询已存在名称
+API-PM-02,0,,200,name 为空字符串（合法请求）
+API-PM-03,,abc,400,缺少必填参数 id（实际500未知异常，缺陷#9）
+API-PM-04,0,,200,id=0 且无 name 参数（实际500未知异常，缺陷#9）

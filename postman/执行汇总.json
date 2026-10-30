@@ -1,0 +1,248 @@
+{
+  "summary": {
+    "requests": 69,
+    "assertions": 114,
+    "passed": 91,
+    "failed": 23
+  },
+  "detail": [
+    {
+      "iter": 1,
+      "req": 1,
+      "assert": 2,
+      "failed": 0,
+      "folder": "01-认证",
+      "report": "报告_01_认证.html",
+      "fails": []
+    },
+    {
+      "iter": 1,
+      "req": 6,
+      "assert": 7,
+      "failed": 0,
+      "folder": "02-仓库接口（增删改查）",
+      "report": "报告_02_仓库CRUD.html",
+      "fails": []
+    },
+    {
+      "iter": 1,
+      "req": 6,
+      "assert": 7,
+      "failed": 0,
+      "folder": "03-客户接口（增删改查）",
+      "report": "报告_03_客户CRUD.html",
+      "fails": []
+    },
+    {
+      "iter": 1,
+      "req": 6,
+      "assert": 7,
+      "failed": 0,
+      "folder": "04-供应商接口（增删改查）",
+      "report": "报告_04_供应商CRUD.html",
+      "fails": []
+    },
+    {
+      "iter": 1,
+      "req": 6,
+      "assert": 7,
+      "failed": 0,
+      "folder": "05-账户接口（增删改查）",
+      "report": "报告_05_账户CRUD.html",
+      "fails": []
+    },
+    {
+      "iter": 1,
+      "req": 6,
+      "assert": 7,
+      "failed": 0,
+      "folder": "06-商品接口（增删改查）",
+      "report": "报告_06_商品CRUD.html",
+      "fails": []
+    },
+    {
+      "iter": 10,
+      "req": 10,
+      "assert": 20,
+      "failed": 6,
+      "folder": "07-1 仓库字段校验（CSV）",
+      "report": "报告_07-1_仓库校验.html",
+      "fails": [
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-02] 名称为空应被拒绝（实际返回200，缺陷#11）",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-03] 名称 1 字符应被拒绝（实际返回200，缺陷#11）",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-06] 名称 21 字符应被拒绝并给出长度提示（实际301数据写入异常，缺陷#10）",
+          "err": "expected '301' to deeply equal '400'"
+        },
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-07] 名称 32 字符应被拒绝（实际301）",
+          "err": "expected '301' to deeply equal '400'"
+        },
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-08] 名称重复应被拒绝",
+          "err": "expected '200' to deeply equal '500'"
+        },
+        {
+          "item": "POST /depot/add",
+          "assert": "[API-WH-09] 名称全空格应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        }
+      ]
+    },
+    {
+      "iter": 5,
+      "req": 5,
+      "assert": 10,
+      "failed": 4,
+      "folder": "07-2 客户字段校验（CSV）",
+      "report": "报告_07-2_客户校验.html",
+      "fails": [
+        {
+          "item": "POST /supplier/add 客户",
+          "assert": "[API-CU-02] 客户名称为空应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /supplier/add 客户",
+          "assert": "[API-CU-03] 客户名称 1 字符（前端 min=2）",
+          "err": "expected '301' to deeply equal '400'"
+        },
+        {
+          "item": "POST /supplier/add 客户",
+          "assert": "[API-CU-04] 客户名称 252 字符超长应被拒绝",
+          "err": "expected '301' to deeply equal '400'"
+        },
+        {
+          "item": "POST /supplier/add 客户",
+          "assert": "[API-CU-05] 客户名称重复应被拒绝",
+          "err": "expected '301' to deeply equal '500'"
+        }
+      ]
+    },
+    {
+      "iter": 5,
+      "req": 5,
+      "assert": 10,
+      "failed": 3,
+      "folder": "07-3 供应商字段校验（CSV）",
+      "report": "报告_07-3_供应商校验.html",
+      "fails": [
+        {
+          "item": "POST /supplier/add 供应商",
+          "assert": "[API-SU-02] 供应商名称为空应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /supplier/add 供应商",
+          "assert": "[API-SU-03] 供应商名称 1 字符应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /supplier/add 供应商",
+          "assert": "[API-SU-04] 供应商名称重复应被拒绝",
+          "err": "expected '200' to deeply equal '500'"
+        }
+      ]
+    },
+    {
+      "iter": 6,
+      "req": 6,
+      "assert": 12,
+      "failed": 5,
+      "folder": "07-4 账户字段校验（CSV）",
+      "report": "报告_07-4_账户校验.html",
+      "fails": [
+        {
+          "item": "POST /account/add",
+          "assert": "[API-AC-02] 账户名称为空应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /account/add",
+          "assert": "[API-AC-03] 账户编号为空应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /account/add",
+          "assert": "[API-AC-04] 期初金额为负应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /account/add",
+          "assert": "[API-AC-05] 账户编号重复应被拒绝",
+          "err": "expected '200' to deeply equal '500'"
+        },
+        {
+          "item": "POST /account/add",
+          "assert": "[API-AC-06] 期初金额非数字应被拒绝",
+          "err": "expected '500' to deeply equal '400'"
+        }
+      ]
+    },
+    {
+      "iter": 6,
+      "req": 6,
+      "assert": 12,
+      "failed": 3,
+      "folder": "07-5 商品字段校验（CSV）",
+      "report": "报告_07-5_商品校验.html",
+      "fails": [
+        {
+          "item": "POST /material/add",
+          "assert": "[API-MT-02] 商品名称为空应被拒绝",
+          "err": "expected '200' to deeply equal '400'"
+        },
+        {
+          "item": "POST /material/add",
+          "assert": "[API-MT-04] 商品名称 101 字符超长应被拒绝",
+          "err": "expected '301' to deeply equal '400'"
+        },
+        {
+          "item": "POST /material/add",
+          "assert": "[API-MT-05] 商品单位为空应被拒绝（实际返回200，缺陷#11同类）",
+          "err": "expected '200' to deeply equal '400'"
+        }
+      ]
+    },
+    {
+      "iter": 4,
+      "req": 4,
+      "assert": 8,
+      "failed": 2,
+      "folder": "08-必填参数缺失（CSV）",
+      "report": "报告_08_参数缺失.html",
+      "fails": [
+        {
+          "item": "GET /depot/checkIsNameExist",
+          "assert": "[API-PM-03] 缺少必填参数 id（实际500未知异常，缺陷#9）",
+          "err": "expected '500' to deeply equal '400'"
+        },
+        {
+          "item": "GET /depot/checkIsNameExist",
+          "assert": "[API-PM-03] 不应返回「未知异常」",
+          "err": "expected '未知异常' to not include '未知异常'"
+        }
+      ]
+    },
+    {
+      "iter": 1,
+      "req": 2,
+      "assert": 5,
+      "failed": 0,
+      "folder": "09-单据接口",
+      "report": "报告_09_单据接口.html",
+      "fails": []
+    }
+  ]
+}
